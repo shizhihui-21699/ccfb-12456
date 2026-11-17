@@ -1,0 +1,22 @@
+name: Slash command
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  run:
+    if: startsWith(github.event.comment.body, '/deploy')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.issue.pull_request.head.ref }}
+      - run: |
+          git fetch origin ${{ github.event.comment.body }}
+          ./deploy.sh "${{ github.event.comment.body }}"
+        env:
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

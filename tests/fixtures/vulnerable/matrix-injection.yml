@@ -1,0 +1,21 @@
+name: Matrix build
+on:
+  pull_request_target:
+    types: [labeled]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        target: ${{ fromJSON(github.event.pull_request.labels.*.name) }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+      id-token: write
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/ci
+      - run: echo "${{ matrix.target }}"
+      - run: ./ci.sh ${{ github.event.label.name }}

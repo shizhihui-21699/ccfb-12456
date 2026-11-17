@@ -1,0 +1,9 @@
+name: Nothing
+on:
+  workflow_dispatch:
+permissions: {}
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ok"

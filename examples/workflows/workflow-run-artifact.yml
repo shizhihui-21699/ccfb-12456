@@ -1,0 +1,25 @@
+name: Publish from artifact
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run release script from artifact
+        run: |
+          chmod +x ./dist/release.sh
+          ./dist/release.sh
+      - name: Upload to npm
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

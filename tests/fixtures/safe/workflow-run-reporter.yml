@@ -1,0 +1,64 @@
+# Representative of a carefully written workflow_run reporter: permissions are
+# scoped per job, the token stays read-only in the job that touches the fork's
+# metadata, and the report task never checks out the fork.
+name: Report Results to PR
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  filter:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    if: github.event.workflow_run.event == 'pull_request'
+    outputs:
+      changed: ${{ steps.filter.outputs.changed }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Resolve fork metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORK_OWNER: ${{ github.event.workflow_run.head_repository.owner.login }}
+          FORK_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          # Values arrive through env; the shell treats them as data.
+          gh api "repos/org/repo/pulls?state=all&head=$FORK_OWNER:$FORK_BRANCH" > /tmp/prs.json
+          jq -r '.[0].base.sha' /tmp/prs.json > /tmp/base_sha
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        with:
+          base: ${{ steps.get_base.outputs.base_sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+  report:
+    needs: filter
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      - uses: actions/download-artifact@6f51ac03b546ed0e0d6c0a2b8a8efc2b1e9d5a6e # v4.1.8
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate report before publishing
+        run: |
+          node scripts/validate-report.mjs results/report.json
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('results/report.json', 'utf8'));
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: report.prNumber,
+              body: `Benchmark: ${report.summary}`,
+            });

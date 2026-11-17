@@ -1,0 +1,35 @@
+# A reusable bench workflow. Its `inputs.*` reach shell commands, which is worth
+# a low-severity note (the caller is code-reviewed), but nothing here is
+# reachable by an outside contributor.
+name: Benchmark Worker
+on:
+  workflow_call:
+    inputs:
+      benchmark:
+        description: Benchmark html file, without extension
+        type: string
+        required: true
+      trace:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@6f51ac03b546ed0e0d6c0a2b8a8efc2b1e9d5a6e # v4.1.8
+        with:
+          name: bench-env
+      - name: Run benchmark
+        env:
+          BENCHMARK: ${{ inputs.benchmark }}
+          TRACE: ${{ inputs.trace }}
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run bench "apps/$BENCHMARK.html" --trace="$TRACE"
